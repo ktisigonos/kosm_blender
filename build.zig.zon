@@ -1,0 +1,29 @@
+.{
+    .name = .kosm_blender,
+    .version = "0.0.0",
+    .fingerprint = 0xdd06d37bdccce6fe, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{
+        .kosm_xml = .{
+            .url = "git+https://git.nnstdios.com/nnra6864/kosm_xml?ref=master#9bec8f3ad99a59d032d0bc6a00a70adabfae2bec",
+            .hash = "kosm_xml-0.0.0-DlY3b3cxAAC45Kw64dJ8YkGBLpfQjITc7JG12vkNQWrz",
+        },
+        .kosm = .{
+            .url = "git+https://git.nnstdios.com/nnra6864/kosm?ref=master#0ddf7d69e4c1b9ca75e9daf7858baaa1c4345691",
+            .hash = "kosm-0.0.0-YCShsmebCgCI7cQ_4pq1HltZJeYW2-YZc-AfM3PH6mEW",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "root.zig",
+        "App.zig",
+        "UserInterface.zig",
+        "Widgets.zig",
+        "WidgetColors.zig",
+        "Editors.zig",
+        "Space.zig",
+        "Regions.zig",
+        "README.md",
+    },
+}
