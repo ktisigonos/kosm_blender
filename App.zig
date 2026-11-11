@@ -7,9 +7,12 @@ const App = @This();
 const std = @import("std");
 const kosm = @import("kosm");
 
-/// The preset kosm owns; the folder names Blender's version.
-/// Default: `~/.config/blender/5.2/scripts/presets/interface_theme/kosm.xml`.
-file: []const u8 = "~/.config/blender/5.2/scripts/presets/interface_theme/kosm.xml",
+/// The preset kosm owns; the folder names Blender's version, and `{name}` is filled as `files`
+/// says. Blender lists the preset by its file name.
+/// Default: `~/.config/blender/5.2/scripts/presets/interface_theme/{name}.xml`.
+file: []const u8 = "~/.config/blender/5.2/scripts/presets/interface_theme/{name}.xml",
+/// How `{name}` in `file` is filled: `kosm`, or the kosmos' name. Default: the theme's `files`.
+files: kosm.Theme.Files = .shared,
 /// Interface-wide colors: panels, editor borders.
 user_interface: UserInterface = .{},
 /// Each kind of widget's colors.
@@ -71,6 +74,7 @@ pub fn from(theme: kosm.Theme) App {
     var editors: Editors = .{};
     inline for (@typeInfo(Editors).@"struct".field_names) |name| @field(editors, name) = space;
     return .{
+        .files = theme.files,
         .user_interface = .{
             .editor_border = sunken,
             .editor_outline = border,
@@ -152,7 +156,7 @@ pub fn apply(self: App, output: *kosm.Output) !void {
         if (@field(self.editors, name)) |space|
             try theme.append(allocator, try builder.wrap(name, @field(Editors.type_names, name), try builder.editorSpace(name, space)));
     }
-    try output.generate(.{ .file = self.file, .lang = "xml", .format = .{ .color = hex8 } }, kosm.Value{
+    try output.generate(.{ .file = try output.namedFile(self.file, self.files), .lang = "xml", .format = .{ .color = hex8 } }, kosm.Value{
         .table = &.{
             .{
                 .key = "bpy",
@@ -257,6 +261,7 @@ const Fixture = struct {
             .diagnostics = &fixture.diagnostics,
             .warnings = &fixture.warnings,
             .app = "blender",
+            .kosmos = "krystallos.dark",
         };
     }
 
@@ -329,4 +334,18 @@ test "from sets every color of every widget and editor" {
     }
     inline for (@typeInfo(Editors).@"struct".field_names) |name| try testing.expect(@field(app.editors, name) != null);
     try testing.expectEqual(0, app.widgets.menu_item.?.inner.?.alpha);
+}
+
+test "the preset is kosm.xml when shared and named after the kosmos per kosmos" {
+    inline for (.{ .{ kosm.Theme.Files.shared, "kosm" }, .{ kosm.Theme.Files.per_kosmos, "krystallos.dark" } }) |case| {
+        var fixture: Fixture = undefined;
+        try fixture.init();
+        defer fixture.deinit();
+        const app: App = .{ .files = case[0] };
+        try app.apply(&fixture.output);
+        try testing.expectEqualStrings("~/.config/blender/5.2/scripts/presets/interface_theme/" ++ case[1] ++ ".xml", fixture.plan.files.items[0].display_path);
+    }
+    var theme = kosm.Theme.from(.{ .black = kosm.hex("041c26"), .white = kosm.hex("a3c5cc") }, .dark);
+    theme.files = .per_kosmos;
+    try testing.expectEqual(.per_kosmos, from(theme).files);
 }
