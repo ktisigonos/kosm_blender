@@ -1,9 +1,11 @@
 # kosm_blender
 
-Blender for kosm: an interface theme preset in the theme's colors, generated to
-`~/.config/blender/5.2/scripts/presets/interface_theme/kosm.xml`. Blender lists it as `kosm`
+Blender for kosm: an interface theme preset in the theme's colors, generated into every
+Blender version you have run (`~/.config/blender/<version>/scripts/presets/interface_theme/kosm.xml`;
+a version is found by the files in its `config` folder, so start a new version once, then
+apply). Blender lists it as `kosm`
 under Preferences > Themes. Blender keeps its theme in its preferences, not the preset, so the
-app also writes a startup script (`scripts/startup/kosm.py`) that loads the preset when Blender
+app also writes a startup script (`scripts/startup/kosm.py`, per version) that loads the preset when Blender
 starts and again within `reload_interval` of an apply, recoloring a running Blender. Loading a
 preset resets the theme first, so every color the app leaves null is Blender's default. With
 the theme's `files = .per_kosmos` the preset is named after the kosmos instead
@@ -20,9 +22,11 @@ single color.
 
 | Field | Default |
 |---|---|
-| `file` | `~/.config/blender/5.2/scripts/presets/interface_theme/{name}.xml`; change `5.2` for another Blender version; `{name}` is `kosm`, or the kosmos' name with `files = .per_kosmos` |
+| `config` | `~/.config/blender`, Blender's user folder with one folder per version |
+| `versions` | null: every version in `config` Blender has run (files in its `config` folder), an error when there is none; a list (`&.{"5.2"}`) writes exactly those |
+| `preset` | `scripts/presets/interface_theme/{name}.xml` inside each version's folder; `{name}` is `kosm`, or the kosmos' name with `files = .per_kosmos` |
 | `files` | the theme's `files`: `.shared` or `.per_kosmos` |
-| `startup_script` | `~/.config/blender/5.2/scripts/startup/kosm.py`, written whole: loads the preset when Blender starts and again when an apply changes it; null writes nothing, and the preset is picked by hand |
+| `startup_script` | `scripts/startup/kosm.py` inside each version's folder, written whole: loads the preset when Blender starts and again when an apply changes it; null writes nothing, and the preset is picked by hand |
 | `reload_interval` | 0.25: seconds between the startup script's checks of the preset (one file status call each); null loads it only at start |
 | `user_interface` | `editor_border`, `editor_outline`, `editor_outline_active`, `widget_text_cursor`, `panel_header`, `panel_title`, `panel_text`, `panel_back`, `panel_sub_back`, `panel_outline`, `panel_active`, `transparent_checker_primary`, `transparent_checker_secondary` |
 | `widgets` | one per kind of widget (`regular`, `tool`, `toolbar_item`, `radio`, `text`, `option`, `toggle`, `num`, `numslider`, `box`, `curve`, `menu`, `pulldown`, `menu_back`, `pie_menu`, `tooltip`, `menu_item`, `scroll`, `progress`, `list_item`, `tab`), each `outline`, `outline_sel`, `inner`, `inner_sel`, `item`, `text`, `text_sel` |

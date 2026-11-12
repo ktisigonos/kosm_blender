@@ -7,17 +7,23 @@ const App = @This();
 const std = @import("std");
 const kosm = @import("kosm");
 
-/// The preset kosm owns; the folder names Blender's version, and `{name}` is filled as `files`
-/// says. Blender lists the preset by its file name.
-/// Default: `~/.config/blender/5.2/scripts/presets/interface_theme/{name}.xml`.
-file: []const u8 = "~/.config/blender/5.2/scripts/presets/interface_theme/{name}.xml",
-/// How `{name}` in `file` is filled: `kosm`, or the kosmos' name. Default: the theme's `files`.
+/// Blender's user folder, holding one folder per version (`5.2`). Default: `~/.config/blender`.
+config: []const u8 = "~/.config/blender",
+/// The versions written, as Blender names their folders in `config` (`"5.2"`). null: every
+/// version Blender has run, found by the files in its `config` folder, so a version started for
+/// the first time gets the theme on the next apply; finding none is an error.
+versions: ?[]const []const u8 = null,
+/// The preset kosm owns, inside each version's folder; `{name}` is filled as `files` says.
+/// Blender lists the preset by its file name.
+/// Default: `scripts/presets/interface_theme/{name}.xml`.
+preset: []const u8 = "scripts/presets/interface_theme/{name}.xml",
+/// How `{name}` in `preset` is filled: `kosm`, or the kosmos' name. Default: the theme's `files`.
 files: kosm.Theme.Files = .shared,
-/// A startup script, written whole, that loads the preset when Blender starts and again
-/// whenever an apply changes it: Blender keeps its theme in its preferences, not the preset, so
-/// without it the preset is picked by hand after every change. null: not written.
-/// Default: `~/.config/blender/5.2/scripts/startup/kosm.py`.
-startup_script: ?[]const u8 = "~/.config/blender/5.2/scripts/startup/kosm.py",
+/// A startup script inside each version's folder, written whole, that loads the preset when
+/// Blender starts and again whenever an apply changes it: Blender keeps its theme in its
+/// preferences, not the preset, so without it the preset is picked by hand after every change.
+/// null: not written. Default: `scripts/startup/kosm.py`.
+startup_script: ?[]const u8 = "scripts/startup/kosm.py",
 /// Seconds between the startup script's checks of the preset, so a running Blender follows an
 /// apply within that time; each check is one file status call. null: the preset is loaded only
 /// when Blender starts. Default 0.25.
@@ -149,9 +155,49 @@ fn with(colors: WidgetColors, changes: WidgetColors) WidgetColors {
 /// How presets spell colors. Blender cuts the alpha off colors without one.
 const hex8: kosm.ColorFormat = .init("#{}", &.{.hex8});
 
-/// Generates the preset. Blender reads it only when the theme is picked again.
+/// Generates the preset, and the startup script that loads it, for each version.
 pub fn apply(self: App, output: *kosm.Output) !void {
     const allocator = output.allocator;
+    const preset = try self.presetValue(allocator);
+    const interval = try self.intervalLiteral(output);
+    for (try self.versionFolders(output)) |folder| {
+        const preset_file = try output.namedFile(try std.Io.Dir.path.join(allocator, &.{ folder, self.preset }), self.files);
+        try output.generate(.{ .file = preset_file, .lang = "xml", .format = .{ .color = hex8 } }, preset);
+        if (self.startup_script) |script| {
+            const script_file = try std.Io.Dir.path.join(allocator, &.{ folder, script });
+            try writeStartupScript(output, script_file, preset_file, interval);
+        }
+    }
+}
+
+/// The folder of every version written: `versions` inside `config`, or each one Blender has run.
+fn versionFolders(self: App, output: *kosm.Output) ![]const []const u8 {
+    const allocator = output.allocator;
+    if (self.versions) |versions| {
+        const folders = try allocator.alloc([]const u8, versions.len);
+        for (versions, folders) |version, *folder| folder.* = try std.Io.Dir.path.join(allocator, &.{ self.config, version });
+        return folders;
+    }
+    const pattern = try std.Io.Dir.path.join(allocator, &.{ self.config, "*", "config", "*" });
+    var folders: std.ArrayList([]const u8) = .empty;
+    // Found files are sorted, so the files of one version are next to each other.
+    for (try output.find(.{ .files = pattern })) |file| {
+        const folder = std.Io.Dir.path.dirname(std.Io.Dir.path.dirname(file).?).?;
+        if (folders.items.len == 0 or !std.mem.eql(u8, folders.items[folders.items.len - 1], folder)) try folders.append(allocator, folder);
+    }
+    return folders.items;
+}
+
+/// `reload_interval` as the startup script spells it: seconds, or `None`.
+fn intervalLiteral(self: App, output: *kosm.Output) ![]const u8 {
+    const seconds = self.reload_interval orelse return "None";
+    if (!std.math.isFinite(seconds) or seconds <= 0)
+        return output.fail(self.config, "reload_interval must be a positive number of seconds or null, not {d}", .{seconds});
+    return output.allocator.print("{d}", .{seconds});
+}
+
+/// The preset's contents: the theme under `bpy`, as Blender's preset loader reads it.
+fn presetValue(self: App, allocator: std.mem.Allocator) !kosm.Value {
     var builder: Builder = .{ .allocator = allocator };
     var user_interface = try builder.attributes(UserInterface, self.user_interface);
     inline for (@typeInfo(Widgets).@"struct".field_names) |name| {
@@ -165,33 +211,25 @@ pub fn apply(self: App, output: *kosm.Output) !void {
         if (@field(self.editors, name)) |space|
             try theme.append(allocator, try builder.wrap(name, @field(Editors.type_names, name), try builder.editorSpace(name, space)));
     }
-    try output.generate(.{ .file = try output.namedFile(self.file, self.files), .lang = "xml", .format = .{ .color = hex8 } }, kosm.Value{
-        .table = &.{
-            .{
-                .key = "bpy",
-                .value = .{
-                    .table = try allocator.dupe(kosm.Value.Entry, &.{
-                        .{ .key = "Theme", .value = .{ .table = theme.items } },
-                        // Blender's loader fails on a preset without one.
-                        .{ .key = "ThemeStyle", .value = .{ .table = &.{} } },
-                    }),
-                },
+    const root = try allocator.dupe(kosm.Value.Entry, &.{
+        .{
+            .key = "bpy",
+            .value = .{
+                .table = try allocator.dupe(kosm.Value.Entry, &.{
+                    .{ .key = "Theme", .value = .{ .table = theme.items } },
+                    // Blender's loader fails on a preset without one.
+                    .{ .key = "ThemeStyle", .value = .{ .table = &.{} } },
+                }),
             },
         },
     });
-    if (self.startup_script) |script| try self.writeStartupScript(output, script);
+    return .{ .table = root };
 }
 
-/// The startup script for the preset `file` names, with its path as a Python string literal.
-fn writeStartupScript(self: App, output: *kosm.Output, script: []const u8) !void {
+/// The startup script `script`, loading `preset` (both as an app writes them) every `interval`.
+fn writeStartupScript(output: *kosm.Output, script: []const u8, preset: []const u8, interval: []const u8) !void {
     const allocator = output.allocator;
-    const preset = try output.namedFile(self.file, self.files);
     const preset_path = if (std.mem.startsWith(u8, preset, "~/")) try std.Io.Dir.path.join(allocator, &.{ output.home, preset[2..] }) else preset;
-    const interval = if (self.reload_interval) |seconds| blk: {
-        if (!std.math.isFinite(seconds) or seconds <= 0)
-            return output.fail(script, "reload_interval must be a positive number of seconds or null, not {d}", .{seconds});
-        break :blk try allocator.print("{d}", .{seconds});
-    } else "None";
     const values: struct { preset: []const u8, interval: []const u8 } = .{ .preset = try pythonString(allocator, preset_path), .interval = interval };
     try output.template(values, .{ .file = script, .text = @embedFile("startup.py") });
 }
@@ -292,6 +330,7 @@ const Fixture = struct {
     fn init(fixture: *Fixture) !void {
         fixture.* = .{ .tmp = testing.tmpDir(.{}), .arena = .init(testing.allocator), .plan = .init(testing.allocator, testing.io) };
         fixture.warnings = .init(fixture.arena.allocator());
+        try fixture.runBlender("5.2");
         const length = try fixture.tmp.dir.realPath(testing.io, &fixture.home_buffer);
         fixture.output = .{
             .allocator = fixture.arena.allocator(),
@@ -303,6 +342,12 @@ const Fixture = struct {
             .app = "blender",
             .kosmos = "krystallos.dark",
         };
+    }
+
+    /// Leaves what a first start of Blender `version` leaves: a file in its `config` folder.
+    fn runBlender(fixture: *Fixture, comptime version: []const u8) !void {
+        try fixture.tmp.dir.createDirPath(testing.io, ".config/blender/" ++ version ++ "/config");
+        try fixture.tmp.dir.writeFile(testing.io, .{ .sub_path = ".config/blender/" ++ version ++ "/config/bookmarks.txt", .data = "" });
     }
 
     fn deinit(fixture: *Fixture) void {
@@ -414,10 +459,10 @@ test "quotes, backslashes and control characters in the preset path are escaped,
     var fixture: Fixture = undefined;
     try fixture.init();
     defer fixture.deinit();
-    const app: App = .{ .file = "/tmp/a \"b\"\\c\td/{name}.xml", .reload_interval = null, .startup_script = "/tmp/startup/kosm.py" };
+    const app: App = .{ .config = "/tmp/a \"b\"\\c\td", .versions = &.{"5.2"}, .reload_interval = null };
     try app.apply(&fixture.output);
-    const script = plannedFile(&fixture, "/tmp/startup/kosm.py").?;
-    try testing.expect(std.mem.indexOf(u8, script, "\nPRESET = \"/tmp/a \\\"b\\\"\\\\c\\x09d/kosm.xml\"\n") != null);
+    const script = plannedFile(&fixture, "/tmp/a \"b\"\\c\td/5.2/scripts/startup/kosm.py").?;
+    try testing.expect(std.mem.indexOf(u8, script, "\nPRESET = \"/tmp/a \\\"b\\\"\\\\c\\x09d/5.2/scripts/presets/interface_theme/kosm.xml\"\n") != null);
     try testing.expect(std.mem.indexOf(u8, script, "\nINTERVAL = None\n") != null);
 }
 
@@ -434,4 +479,35 @@ test "a null startup script writes only the preset, and a reload interval of zer
     const zero: App = .{ .reload_interval = 0 };
     try testing.expectError(error.AppFailed, zero.apply(&failing.output));
     try testing.expect(std.mem.indexOf(u8, failing.diagnostics.message(), "reload_interval must be a positive number of seconds") != null);
+}
+
+test "every version Blender has run gets the preset and the script, a version never run gets none" {
+    var fixture: Fixture = undefined;
+    try fixture.init();
+    defer fixture.deinit();
+    try fixture.runBlender("5.1");
+    try fixture.tmp.dir.createDirPath(testing.io, ".config/blender/5.3/config");
+    try (App{}).apply(&fixture.output);
+    var written: std.ArrayList([]const u8) = .empty;
+    for (fixture.plan.files.items) |file| try written.append(fixture.arena.allocator(), file.display_path);
+    try testing.expectEqualDeep(@as([]const []const u8, &.{
+        "~/.config/blender/5.1/scripts/presets/interface_theme/kosm.xml",
+        "~/.config/blender/5.1/scripts/startup/kosm.py",
+        "~/.config/blender/5.2/scripts/presets/interface_theme/kosm.xml",
+        "~/.config/blender/5.2/scripts/startup/kosm.py",
+    }), written.items);
+}
+
+test "listed versions are written even before Blender has run them, finding none is an error" {
+    var fixture: Fixture = undefined;
+    try fixture.init();
+    defer fixture.deinit();
+    try (App{ .versions = &.{"6.0"}, .startup_script = null }).apply(&fixture.output);
+    try testing.expectEqualStrings("~/.config/blender/6.0/scripts/presets/interface_theme/kosm.xml", fixture.plan.files.items[0].display_path);
+    var empty: Fixture = undefined;
+    try empty.init();
+    defer empty.deinit();
+    try empty.tmp.dir.deleteTree(testing.io, ".config/blender");
+    try testing.expectError(error.NoFile, (App{}).apply(&empty.output));
+    try testing.expectEqualStrings("~/.config/blender/*/config/*", empty.diagnostics.file);
 }
