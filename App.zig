@@ -13,6 +13,15 @@ const kosm = @import("kosm");
 file: []const u8 = "~/.config/blender/5.2/scripts/presets/interface_theme/{name}.xml",
 /// How `{name}` in `file` is filled: `kosm`, or the kosmos' name. Default: the theme's `files`.
 files: kosm.Theme.Files = .shared,
+/// A startup script, written whole, that loads the preset when Blender starts and again
+/// whenever an apply changes it: Blender keeps its theme in its preferences, not the preset, so
+/// without it the preset is picked by hand after every change. null: not written.
+/// Default: `~/.config/blender/5.2/scripts/startup/kosm.py`.
+startup_script: ?[]const u8 = "~/.config/blender/5.2/scripts/startup/kosm.py",
+/// Seconds between the startup script's checks of the preset, so a running Blender follows an
+/// apply within that time; each check is one file status call. null: the preset is loaded only
+/// when Blender starts. Default 0.25.
+reload_interval: ?f64 = 0.25,
 /// Interface-wide colors: panels, editor borders.
 user_interface: UserInterface = .{},
 /// Each kind of widget's colors.
@@ -170,6 +179,37 @@ pub fn apply(self: App, output: *kosm.Output) !void {
             },
         },
     });
+    if (self.startup_script) |script| try self.writeStartupScript(output, script);
+}
+
+/// The startup script for the preset `file` names, with its path as a Python string literal.
+fn writeStartupScript(self: App, output: *kosm.Output, script: []const u8) !void {
+    const allocator = output.allocator;
+    const preset = try output.namedFile(self.file, self.files);
+    const preset_path = if (std.mem.startsWith(u8, preset, "~/")) try std.Io.Dir.path.join(allocator, &.{ output.home, preset[2..] }) else preset;
+    const interval = if (self.reload_interval) |seconds| blk: {
+        if (!std.math.isFinite(seconds) or seconds <= 0)
+            return output.fail(script, "reload_interval must be a positive number of seconds or null, not {d}", .{seconds});
+        break :blk try allocator.print("{d}", .{seconds});
+    } else "None";
+    const values: struct { preset: []const u8, interval: []const u8 } = .{ .preset = try pythonString(allocator, preset_path), .interval = interval };
+    try output.template(values, .{ .file = script, .text = @embedFile("startup.py") });
+}
+
+/// `text` as a double-quoted Python string literal: backslashes, quotes and control characters
+/// escaped, other bytes (UTF-8 included) as they are.
+fn pythonString(allocator: std.mem.Allocator, text: []const u8) ![]const u8 {
+    var literal: std.Io.Writer.Allocating = .init(allocator);
+    errdefer literal.deinit();
+    const writer = &literal.writer;
+    try writer.writeByte('"');
+    for (text) |byte| switch (byte) {
+        '\\', '"' => try writer.print("\\{c}", .{byte}),
+        0...0x1f, 0x7f => try writer.print("\\x{x:0>2}", .{byte}),
+        else => try writer.writeByte(byte),
+    };
+    try writer.writeByte('"');
+    return literal.toOwnedSlice();
 }
 
 /// Each region with a set color, under its `ThemeRegions*` type.
@@ -348,4 +388,50 @@ test "the preset is kosm.xml when shared and named after the kosmos per kosmos" 
     var theme = kosm.Theme.from(.{ .black = kosm.hex("041c26"), .white = kosm.hex("a3c5cc") }, .dark);
     theme.files = .per_kosmos;
     try testing.expectEqual(.per_kosmos, from(theme).files);
+}
+
+fn plannedFile(fixture: *Fixture, display_path: []const u8) ?[]const u8 {
+    for (fixture.plan.files.items) |file| {
+        if (std.mem.eql(u8, file.display_path, display_path)) return file.new;
+    }
+    return null;
+}
+
+test "the startup script loads the preset kosm writes by its full path, checking it every interval" {
+    var fixture: Fixture = undefined;
+    try fixture.init();
+    defer fixture.deinit();
+    const app: App = .{ .files = .per_kosmos };
+    try app.apply(&fixture.output);
+    const script = plannedFile(&fixture, "~/.config/blender/5.2/scripts/startup/kosm.py").?;
+    const preset_line = try std.mem.concat(fixture.arena.allocator(), u8, &.{ "\nPRESET = \"", fixture.output.home, "/.config/blender/5.2/scripts/presets/interface_theme/krystallos.dark.xml\"\n" });
+    try testing.expect(std.mem.indexOf(u8, script, preset_line) != null);
+    try testing.expect(std.mem.indexOf(u8, script, "\nINTERVAL = 0.25\n") != null);
+    try testing.expect(std.mem.indexOf(u8, script, "kosm.") == null);
+}
+
+test "quotes, backslashes and control characters in the preset path are escaped, a null interval loads once" {
+    var fixture: Fixture = undefined;
+    try fixture.init();
+    defer fixture.deinit();
+    const app: App = .{ .file = "/tmp/a \"b\"\\c\td/{name}.xml", .reload_interval = null, .startup_script = "/tmp/startup/kosm.py" };
+    try app.apply(&fixture.output);
+    const script = plannedFile(&fixture, "/tmp/startup/kosm.py").?;
+    try testing.expect(std.mem.indexOf(u8, script, "\nPRESET = \"/tmp/a \\\"b\\\"\\\\c\\x09d/kosm.xml\"\n") != null);
+    try testing.expect(std.mem.indexOf(u8, script, "\nINTERVAL = None\n") != null);
+}
+
+test "a null startup script writes only the preset, and a reload interval of zero is an error" {
+    var fixture: Fixture = undefined;
+    try fixture.init();
+    defer fixture.deinit();
+    const without: App = .{ .startup_script = null };
+    try without.apply(&fixture.output);
+    try testing.expectEqual(1, fixture.plan.files.items.len);
+    var failing: Fixture = undefined;
+    try failing.init();
+    defer failing.deinit();
+    const zero: App = .{ .reload_interval = 0 };
+    try testing.expectError(error.AppFailed, zero.apply(&failing.output));
+    try testing.expect(std.mem.indexOf(u8, failing.diagnostics.message(), "reload_interval must be a positive number of seconds") != null);
 }

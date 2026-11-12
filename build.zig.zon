@@ -24,6 +24,7 @@
         "Editors.zig",
         "Space.zig",
         "Regions.zig",
+        "startup.py",
         "README.md",
     },
 }
