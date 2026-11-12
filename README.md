@@ -11,9 +11,9 @@ preset resets the theme first, so every color the app leaves null is Blender's d
 the theme's `files = .per_kosmos` the preset is named after the kosmos instead
 (`krystallos.dark.xml`), so each kosmos applied keeps its own preset in the list.
 
-`from(theme)` sets backgrounds from black (white in light mode) with its surface steps
+`from(theme)` sets backgrounds from the theme's background role with its surface steps
 (buttons raised, fields and boxes sunken, menus and tooltips on the overlay step, menu and list
-items transparent), text white and highlighted text brighter, selections and slider fills cyan
+items transparent), text from the foreground role and highlighted text brighter, selections and slider fills the accent
 with readable text from the theme's `contrast.on`, and outlines the theme's `line.border`.
 Every editor gets the same background, header and text; the 3D viewport's background is a
 single color.

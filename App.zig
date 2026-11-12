@@ -50,14 +50,13 @@ pub const Space = @import("Space.zig");
 /// The colors of shared regions.
 pub const Regions = @import("Regions.zig");
 
-/// Colors from the theme: backgrounds black (white in light mode) with its surface steps,
-/// text white, selections and slider fills cyan with readable text from the theme's
+/// Colors from the theme: backgrounds from the background role with its surface steps, text
+/// from the foreground role, selections and slider fills the accent with readable text from the theme's
 /// `contrast.on`, outlines the theme's `line.border`.
 pub fn from(theme: kosm.Theme) App {
-    const palette = theme.palette;
     const variations = theme.variations;
-    const foreground = if (theme.mode == .dark) palette.white else palette.black;
-    const background = if (theme.mode == .dark) palette.black else palette.white;
+    const foreground = theme.roles.foreground;
+    const background = theme.roles.background;
     const raised = variations.surface.raised.apply(background);
     const sunken = variations.surface.sunken.apply(background);
     const overlay = variations.surface.overlay.apply(background);
@@ -67,12 +66,12 @@ pub fn from(theme: kosm.Theme) App {
     clear.alpha = 0;
     const button: WidgetColors = .{
         .outline = border,
-        .outline_sel = palette.cyan,
+        .outline_sel = theme.roles.accent,
         .inner = raised,
-        .inner_sel = palette.cyan,
-        .item = palette.cyan,
+        .inner_sel = theme.roles.accent,
+        .item = theme.roles.accent,
         .text = foreground,
-        .text_sel = variations.contrast.on.apply(palette.cyan),
+        .text_sel = variations.contrast.on.apply(theme.roles.accent),
     };
     const field = with(button, .{ .inner = sunken });
     const floating = with(button, .{ .inner = overlay });
@@ -93,8 +92,8 @@ pub fn from(theme: kosm.Theme) App {
         .user_interface = .{
             .editor_border = sunken,
             .editor_outline = border,
-            .editor_outline_active = palette.cyan,
-            .widget_text_cursor = palette.cyan,
+            .editor_outline_active = theme.roles.accent,
+            .widget_text_cursor = theme.roles.accent,
             .panel_header = raised,
             .panel_title = foreground,
             .panel_text = foreground,
@@ -136,7 +135,7 @@ pub fn from(theme: kosm.Theme) App {
             .asset_shelf_header_back = raised,
             .channels_back = raised,
             .channels_text = foreground,
-            .channels_text_selected = palette.cyan,
+            .channels_text_selected = theme.roles.accent,
             .scrubbing_back = raised,
             .scrubbing_text = foreground,
         },
@@ -412,7 +411,7 @@ test "set colors nest under their property and type, the viewport's back becomes
 }
 
 test "from sets every color of every widget and editor" {
-    const app = from(kosm.Theme.from(.{ .black = kosm.hex("041c26"), .white = kosm.hex("a3c5cc") }, .dark));
+    const app = from(kosm.Theme.from(.{ .palette = .{ .black = kosm.hex("041c26"), .white = kosm.hex("a3c5cc") }, .mode = .dark }));
     inline for (@typeInfo(Widgets).@"struct".field_names) |name| {
         const colors = @field(app.widgets, name).?;
         inline for (@typeInfo(WidgetColors).@"struct".field_names) |color| try testing.expect(@field(colors, color) != null);
@@ -430,7 +429,7 @@ test "the preset is kosm.xml when shared and named after the kosmos per kosmos" 
         try app.apply(&fixture.output);
         try testing.expectEqualStrings("~/.config/blender/5.2/scripts/presets/interface_theme/" ++ case[1] ++ ".xml", fixture.plan.files.items[0].display_path);
     }
-    var theme = kosm.Theme.from(.{ .black = kosm.hex("041c26"), .white = kosm.hex("a3c5cc") }, .dark);
+    var theme = kosm.Theme.from(.{ .palette = .{ .black = kosm.hex("041c26"), .white = kosm.hex("a3c5cc") }, .mode = .dark });
     theme.files = .per_kosmos;
     try testing.expectEqual(.per_kosmos, from(theme).files);
 }
