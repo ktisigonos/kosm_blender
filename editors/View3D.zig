@@ -118,3 +118,6 @@ skin_root: ?Color = null,
 view_overlay: ?Color = null,
 /// Transform. Blender's default: `#ffffff`.
 transform: ?Color = null,
+/// Width in pixels of the outline around selected objects, 1 to 5. null: the app's
+/// `border_size`, or Blender's default 1.
+outline_width: ?u32 = null,

@@ -33,6 +33,10 @@ reload_interval: ?f64 = 0.25,
 /// to `user_interface.panel_roundness` that are left null. Panels are at most 10 pixels round,
 /// widgets 20; a larger radius is cut to that with a warning. null: Blender's default roundness.
 rounding: ?u32 = null,
+/// Width of window borders in pixels, as other apps' borders are; given to the outline around
+/// selected objects (`editors.view_3d.outline_width`) when that is null. Blender draws 1 to 5;
+/// another width is cut to that with a warning. null: Blender's default width.
+border_size: ?u32 = null,
 /// How far shadows reach in pixels, as other apps' shadows do; Blender's menu and panel
 /// shadows are this times `shadow_scale`, where `user_interface.menu_shadow_width` is null.
 /// null: Blender's default width.
@@ -76,6 +80,8 @@ pub const Regions = @import("Regions.zig");
 pub const widget_unit = 20;
 /// Blender's widest menu shadow, in pixels.
 pub const max_menu_shadow_width = 24;
+/// The narrowest and widest outline Blender draws around selected objects, in pixels.
+pub const outline_widths: struct { min: u32, max: u32 } = .{ .min = 1, .max = 5 };
 
 /// Every color from the theme. The interface: backgrounds from the background role with its
 /// surface steps, text from the foreground role, buttons pressed and sliders filled with the
@@ -707,8 +713,8 @@ fn intervalLiteral(self: App, output: *kosm.Output) ![]const u8 {
     return output.allocator.print("{d}", .{seconds});
 }
 
-/// The app with `rounding` and `shadow_range` given to every roundness and shadow width left
-/// null, each cut to what Blender can draw with a warning on `file`.
+/// The app with `rounding`, `shadow_range` and `border_size` given to every roundness, shadow
+/// width and outline width left null, each cut to what Blender can draw with a warning on `file`.
 fn withShapes(self: App, output: *kosm.Output, file: []const u8) !App {
     var result = self;
     if (self.rounding) |pixels| {
@@ -728,6 +734,12 @@ fn withShapes(self: App, output: *kosm.Output, file: []const u8) !App {
         if (width > max_menu_shadow_width)
             try output.warn(file, "Blender's menu shadows are at most {d} pixels wide, not {d}; using {d}", .{ max_menu_shadow_width, width, max_menu_shadow_width });
         result.user_interface.menu_shadow_width = @intFromFloat(@min(width, max_menu_shadow_width));
+    };
+    if (self.border_size) |size| if (result.editors.view_3d.outline_width == null) {
+        const width = std.math.clamp(size, outline_widths.min, outline_widths.max);
+        if (width != size)
+            try output.warn(file, "Blender's object outlines are {d} to {d} pixels wide, not {d}; using {d}", .{ outline_widths.min, outline_widths.max, size, width });
+        result.editors.view_3d.outline_width = width;
     };
     return result;
 }
@@ -1033,6 +1045,24 @@ test "rounding becomes the roundness of widgets and panels left null, cut to wha
     try testing.expect(std.mem.indexOf(u8, preset, "<ThemeWidgetColors roundness=\"0.1\"/>") != null);
     try testing.expectEqual(1, fixture.warnings.items.items.len);
     try testing.expect(std.mem.indexOf(u8, fixture.warnings.items.items[0].message, "panels are at most 10 pixels round, not 12") != null);
+}
+
+test "the border size is the object outline's width, cut to the 1 to 5 pixels Blender draws" {
+    inline for (.{ .{ 2, "2", 0 }, .{ 8, "5", 1 } }) |case| {
+        var fixture: Fixture = undefined;
+        try fixture.init();
+        defer fixture.deinit();
+        const app: App = .{ .border_size = case[0], .startup_script = null };
+        try app.apply(&fixture.output);
+        try testing.expect(std.mem.indexOf(u8, fixture.plan.files.items[0].new, "<ThemeView3D outline_width=\"" ++ case[1] ++ "\"/>") != null);
+        try testing.expectEqual(case[2], fixture.warnings.items.items.len);
+    }
+    var fixture: Fixture = undefined;
+    try fixture.init();
+    defer fixture.deinit();
+    const set: App = .{ .border_size = 2, .editors = .{ .view_3d = .{ .outline_width = 3 } }, .startup_script = null };
+    try set.apply(&fixture.output);
+    try testing.expect(std.mem.indexOf(u8, fixture.plan.files.items[0].new, "outline_width=\"3\"") != null);
 }
 
 test "the shadow range times the scale is the menu shadow width, cut to 24" {
