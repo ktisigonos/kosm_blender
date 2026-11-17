@@ -21,3 +21,7 @@ channels_text_selected: ?Color = null,
 scrubbing_back: ?Color = null,
 /// The time scrubbing region's text.
 scrubbing_text: ?Color = null,
+/// Markers in the time scrubbing region.
+scrubbing_time_marker: ?Color = null,
+/// Selected markers in the time scrubbing region.
+scrubbing_time_marker_selected: ?Color = null,

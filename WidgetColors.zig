@@ -17,3 +17,6 @@ item: ?Color = null,
 text: ?Color = null,
 /// Text while selected or pressed.
 text_sel: ?Color = null,
+/// How round the corners are, 0 (square) to 1: the radius is this times Blender's widget unit,
+/// 20 pixels at a resolution scale of 1. null: the app's `rounding`, or Blender's default 0.4.
+roundness: ?f64 = null,
