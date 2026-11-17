@@ -5,15 +5,9 @@ const Color = @import("kosm").Color;
 
 /// The editor's background; the 3D viewport's single color.
 back: ?Color = null,
-/// Region titles.
-title: ?Color = null,
-/// Text.
+/// Text, in the editor and its header.
 text: ?Color = null,
-/// Highlighted text.
+/// Highlighted text, in the editor and its header.
 text_hi: ?Color = null,
 /// The header.
 header: ?Color = null,
-/// Text in the header.
-header_text: ?Color = null,
-/// Highlighted text in the header.
-header_text_hi: ?Color = null,

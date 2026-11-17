@@ -262,9 +262,10 @@ const Picks = struct {
     fn widgetState(picks: Picks) WidgetStateColors {
         const roles = picks.theme.roles;
         return .{
-            .@"error" = roles.@"error",
+            // Blender draws error and info states translucent over the widget.
+            .@"error" = withAlpha(roles.@"error", 0.6),
             .warning = roles.warning,
-            .info = roles.accent,
+            .info = withAlpha(roles.accent, 0.4),
             .success = roles.success,
             .inner_anim = picks.behindText(picks.hue(.green)),
             .inner_anim_sel = picks.hue(.green),
@@ -347,7 +348,7 @@ const Picks = struct {
         var result: Editors = .{
             .view_3d = picks.view3D(),
             .graph_editor = picks.graphEditor(),
-            .file_browser = .{ .selected_file = picks.behindText(picks.selected()), .row_alternate = picks.rowAlternate() },
+            .file_browser = .{ .row_alternate = picks.rowAlternate() },
             .nla_editor = picks.nlaEditor(),
             .dopesheet_editor = picks.dopeSheet(),
             .image_editor = picks.imageEditor(),
@@ -364,12 +365,9 @@ const Picks = struct {
         };
         const space: Space = .{
             .back = picks.background(),
-            .title = picks.foreground(),
             .text = picks.foreground(),
             .text_hi = picks.bright(),
             .header = picks.raised(),
-            .header_text = picks.foreground(),
-            .header_text_hi = picks.bright(),
         };
         inline for (@typeInfo(Editors).@"struct".field_names) |name| @field(result, name).space = space;
         return result;

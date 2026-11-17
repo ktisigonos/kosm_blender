@@ -28,6 +28,10 @@ theme's code colors, and messages the error, warning and success roles.
 base sets them from its values) and become Blender's roundness of every widget and panel and its
 menu shadow width, where those are left null.
 
+The fields follow Blender 5.3's theme. Older versions read the same preset, keeping their
+defaults for the few colors 5.3 dropped (editors' titles and header text, the file browser's
+selected file).
+
 ## Fields
 
 | Field | Default |
@@ -45,7 +49,7 @@ menu shadow width, where those are left null.
 | `widgets` | one per kind of widget (`regular`, `tool`, `toolbar_item`, `radio`, `text`, `option`, `toggle`, `num`, `numslider`, `box`, `curve`, `menu`, `pulldown`, `menu_back`, `pie_menu`, `tooltip`, `menu_item`, `scroll`, `progress`, `list_item`, `tab`), each `outline`, `outline_sel`, `inner`, `inner_sel`, `item`, `text`, `text_sel` and `roundness` (0..1) |
 | `widget_state` | `error`, `warning`, `info`, `success`, and `inner_<state>` with `inner_<state>_sel` for `anim`, `key`, `driven`, `overridden`, `changed` |
 | `common` | `anim` (`playhead`, `preview_range`, `scene_strip_range`, `channels`, `channels_sub`, `channel_group`, `channel_group_active`, `channel`, `channel_selected`, `keyframe` and `keyframe_<type>` for `extreme`, `breakdown`, `jitter`, `moving_hold`, `generated`, each with `_selected`, `long_key`, `long_key_selected`) and `curves` (`handle_<type>` and `handle_sel_<type>` for `free`, `auto`, `vect`, `align`, `auto_clamped`; `handle_vertex`, `handle_vertex_select`) |
-| `editors` | one per editor (`view_3d`, `graph_editor`, `file_browser`, `nla_editor`, `dopesheet_editor`, `image_editor`, `sequence_editor`, `properties`, `text_editor`, `node_editor`, `outliner`, `info`, `preferences`, `console`, `clip_editor`, `topbar`, `statusbar`, `spreadsheet`), each a `space` (`back`, `title`, `text`, `text_hi`, `header`, `header_text`, `header_text_hi`) and every color of that editor under Blender's name (`editors.view_3d.object_active`, `editors.node_editor.shader_node`; completion lists them, each with Blender's default) |
+| `editors` | one per editor (`view_3d`, `graph_editor`, `file_browser`, `nla_editor`, `dopesheet_editor`, `image_editor`, `sequence_editor`, `properties`, `text_editor`, `node_editor`, `outliner`, `info`, `preferences`, `console`, `clip_editor`, `topbar`, `statusbar`, `spreadsheet`), each a `space` (`back`, `text`, `text_hi`, `header`) and every color of that editor under Blender's name (`editors.view_3d.object_active`, `editors.node_editor.shader_node`; completion lists them, each with Blender's default) |
 | `regions` | `sidebars_back`, `sidebars_tab_back`, `asset_shelf_back`, `asset_shelf_header_back`, `channels_back`, `channels_text`, `channels_text_selected`, `scrubbing_back`, `scrubbing_text`, `scrubbing_time_marker`, `scrubbing_time_marker_selected` |
 
 Every color left null is Blender's default.

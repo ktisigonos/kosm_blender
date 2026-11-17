@@ -6,11 +6,11 @@ const Color = @import("kosm").Color;
 /// The type Blender names these colors with, which presets must use.
 pub const type_name = "ThemeWidgetStateColors";
 
-/// Color for error items. Blender's default: `#991616ff`.
+/// Color for error items. Blender's default: `#e6000099`.
 @"error": ?Color = null,
 /// Color for warning items. Blender's default: `#ac8737ff`.
 warning: ?Color = null,
-/// Color for informational items. Blender's default: `#28487dff`.
+/// Color for informational items. Blender's default: `#1a8cff66`.
 info: ?Color = null,
 /// Color for successful items. Blender's default: `#188625ff`.
 success: ?Color = null,
