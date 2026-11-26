@@ -32,6 +32,8 @@ The fields follow Blender 5.3's theme. Older versions read the same preset, keep
 defaults for the few colors 5.3 dropped (editors' titles and header text, the file browser's
 selected file).
 
+`kosm doctor` checks that Blender is installed, as the `blender` command.
+
 ## Fields
 
 | Field | Default |

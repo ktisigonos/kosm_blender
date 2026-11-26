@@ -671,6 +671,12 @@ fn with(colors: WidgetColors, changes: WidgetColors) WidgetColors {
 /// How presets spell colors. Blender cuts the alpha off colors without one.
 const hex8: kosm.ColorFormat = .init("#{}", &.{.hex8});
 
+/// What `kosm doctor` checks: Blender installed, as the `blender` command.
+pub fn checkup(self: App) kosm.Checkup {
+    _ = self;
+    return .{ .program = .{ .command = "blender" } };
+}
+
 /// Generates the preset, and the startup script that loads it, for each version.
 pub fn apply(self: App, output: *kosm.Output) !void {
     const allocator = output.allocator;
